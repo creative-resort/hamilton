@@ -9,7 +9,8 @@ Note: one should largely consider the code in this module to be "private".
 import inspect
 import logging
 import os.path
-import pathlib
+
+# import pathlib
 import uuid
 from enum import Enum
 from types import ModuleType
@@ -923,13 +924,15 @@ class FunctionGraph:
         # - `render()` accepts a `view` kwarg
         # - `render()` will append it's kwarg `format` to the filename
         if output_file_path:
-            if keep_dot:
-                kwargs["view"] = kwargs.get("view", False)
-                dot.render(output_file_path, **kwargs)
-            else:
-                kwargs.pop("view", None)
-                output_file_path = f"{output_file_path}.{kwargs['format']}"
-                pathlib.Path(output_file_path).write_bytes(dot.pipe(**kwargs))
+            with open(output_file_path + ".dot", "w") as f:
+                f.write(str(dot))
+            # if keep_dot:
+            #     kwargs["view"] = kwargs.get("view", False)
+            #     dot.render(output_file_path, **kwargs)
+            # else:
+            #     kwargs.pop("view", None)
+            #     output_file_path = f"{output_file_path}.{kwargs['format']}"
+            #     pathlib.Path(output_file_path).write_bytes(dot.pipe(**kwargs))
         return dot
 
     def get_impacted_nodes(self, var_changes: List[str]) -> Set[node.Node]:
