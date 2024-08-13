@@ -54,6 +54,11 @@ class dbmRepository(RepositoryProtocol):
         return result
 
 
+# TODO create a "temporary cache" that uses an in-memory constructs
+# such that you can catch for the lifetime of the Python session
+# for example, this would be useful when using `dr.execute()` in a for loop
+
+
 # class MaterializerStore(RepositoryProtocol):
 #     def __init__(self, materializers: dict, path: str = "."):
 #         self.materializers = materializers
