@@ -1,16 +1,20 @@
 import base64
+import dataclasses
 import functools
 import hashlib
-import json
 import logging
-import pathlib
-from collections.abc import Callable, Mapping, Sequence, Set
-from typing import Any, Dict, Optional
+from collections.abc import Mapping, Sequence, Set
+from typing import Union
 
 from hamilton.experimental import h_databackends
-from hamilton.lifecycle import GraphExecutionHook, NodeExecutionHook
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class Fingerprint:
+    code: Union[str, None]
+    data: Union[str, None]
 
 
 def _compact_hash(digest: bytes) -> str:
@@ -22,7 +26,6 @@ def _compact_hash(digest: bytes) -> str:
     return base64.urlsafe_b64encode(digest).decode()
 
 
-# TODO handle hashing None
 @functools.singledispatch
 def hash_value(obj, depth=0, *args, **kwargs) -> str:
     """Fingerprinting strategy that computes a hash of the
@@ -115,52 +118,3 @@ def hash_pandas_dataframe(obj, *args, **kwargs) -> str:
 
     hash_per_row = hash_pandas_object(obj)
     return hash_value(hash_per_row.to_dict())
-
-
-class FingerprintingAdapter(GraphExecutionHook, NodeExecutionHook):
-    def __init__(self, path: Optional[str] = None, fingerprint: Optional[Callable] = None):
-        """Fingerprint node results. This is primarily an interval tool for developing
-        and debugging caching features.
-
-        If path is specified, output a {node_name: fingerprint} to ./fingerprints/{run_id}.json
-        Strategy allows to pass different callables to fingerprint values. Works well with
-        `@functools.single_dispatch`. See `hash_value()` for reference
-        """
-        self.path = path
-        self.fingerprint = fingerprint if fingerprint else hash_value
-        self.run_fingerprints = {}
-
-    def run_before_graph_execution(
-        self, *, run_id: str, inputs: Dict[str, Any], overrides: Dict[str, Any], **kwargs: Any
-    ):
-        """Get the fingerprint of inputs and overrides before execution.
-
-        It's the ideal place to fingerprint these values since they never pass through the hooks
-        `run_to_execute_node()` or `run_after_node_execution()`
-        """
-        self.run_id = run_id
-
-        if inputs:
-            for node_name, value in inputs.items():
-                self.run_fingerprints[node_name] = self.fingerprint(value)
-
-        if overrides:
-            for node_name, value in overrides.items():
-                self.run_fingerprints[node_name] = self.fingerprint(value)
-
-    def run_after_node_execution(self, *, node_name: str, result: Any, **kwargs):
-        """Get the fingerprint of the most recent node result"""
-        # values passed as inputs or overrides will already have known hashes
-        data_hash = self.run_fingerprints.get(node_name)
-        if data_hash is None:
-            self.run_fingerprints[node_name] = self.fingerprint(result)
-
-    def run_before_node_execution(self, *args, **kwargs):
-        """Placeholder required to subclass `NodeExecutionHook`"""
-
-    def run_after_graph_execution(self, *args, **kwargs):
-        """If path is specified, output a {node_name: fingerprint} to ./fingerprints/{run_id}.json"""
-        if self.path:
-            file_path = pathlib.Path(self.path, "fingerprints", f"{self.run_id}.json")
-            file_path.parent.mkdir(exist_ok=True)
-            file_path.write_text(json.dumps(self.run_fingerprints))
