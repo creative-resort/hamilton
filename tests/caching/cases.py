@@ -55,15 +55,18 @@ def module_5() -> ModuleType:
 
 
 def module_6() -> ModuleType:
-    """Node with node and external dependency"""
+    """Node with two node dependencies"""
 
     def A() -> int:
         return 1
 
-    def B(A: int, external: int) -> int:
-        return A + external + 3
+    def B(A: int) -> int:
+        return A + 1
 
-    return create_temporary_module(A, B)
+    def C(A: int, B: int) -> int:
+        return A + B
+
+    return create_temporary_module(A, B, C)
 
 
 ALL_MODULES = [

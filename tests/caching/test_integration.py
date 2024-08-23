@@ -2,7 +2,7 @@ import pytest
 
 from hamilton import driver
 from hamilton.caching.adapters import SmartCacheAdapter
-from hamilton.caching.store import InMemoryMetadataStore, ShelveResultStore
+from hamilton.caching.store import ShelveResultStore, SQLiteMetadataStore
 
 from tests.caching import cases
 
@@ -10,9 +10,9 @@ from tests.caching import cases
 @pytest.fixture
 def h_driver(request, tmp_path):
     module = request.param
-    repo = InMemoryMetadataStore(path=tmp_path)
+    metadata_store = SQLiteMetadataStore(path=tmp_path)
     cache = ShelveResultStore(path=tmp_path)
-    adapter = SmartCacheAdapter(repo=repo, result_store=cache)
+    adapter = SmartCacheAdapter(metadata_store=metadata_store, result_store=cache)
 
     return driver.Builder().with_modules(module).with_adapters(adapter).build()
 
