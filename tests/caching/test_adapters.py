@@ -2,21 +2,31 @@ import pytest
 
 from hamilton.caching.adapters import SmartCacheAdapter
 from hamilton.caching.fingerprinting import Fingerprint, create_context_key, hash_value
-from hamilton.caching.store import ShelveResultStore, SQLiteMetadataStore
+from hamilton.graph_types import HamiltonNode
 
 
 @pytest.fixture
 def cache_adapter(tmp_path):
-    result_store = ShelveResultStore(path=tmp_path)
-    metadata_store = SQLiteMetadataStore(path=tmp_path)
-    metadata_store.initialize()
-    adapter = SmartCacheAdapter(repo=metadata_store, result_store=result_store)
+    adapter = SmartCacheAdapter(path=tmp_path)
     adapter.code_versions = {"foo": "0", "bar": "0"}
+    adapter.metadata_store.initialize()
+    adapter.graph = {
+        "foo": HamiltonNode(
+            name="foo",
+            type=str,
+            tags={},
+            is_external_input=False,
+            originating_functions=(),
+            documentation="",
+            required_dependencies=set(),
+            optional_dependencies=set(),
+        )
+    }
     adapter.run_id = "my-run-id"
 
     yield adapter
 
-    metadata_store.reset()
+    adapter.metadata_store.reset()
 
 
 def test_after_node_execution_set_and_get(cache_adapter):
@@ -48,32 +58,30 @@ def test_after_node_execution_set_and_get(cache_adapter):
     assert metadata_store.get(to_code=code_version, context_key=context_key) == fingerprint
 
 
-# def test_after_node_execution_dont_set_cache_for_existing_fingerprint(cache_adapter):
-#     """Adapter shouldn't write to cache if it finds the fingerprint in the repository"""
-#     node_name = "foo"
-#     result = 123
-#     node_kwargs = {}
-#     code_version = cache_adapter.code_versions[node_name]
-#     data_version = hash_value(result)
-#     fingerprint = Fingerprint(node_name=node_name, code=code_version, data=data_version)
-#     context_key = create_context_key(to_code=code_version, dependencies=[])
-#     result_store = cache_adapter.result_store
-#     metadata_store = cache_adapter.metadata_store
+def test_after_node_execution_dont_set_cache_for_existing_fingerprint(cache_adapter):
+    """Adapter shouldn't write to cache if it finds the fingerprint in the repository"""
+    node_name = "foo"
+    result = 123
+    node_kwargs = {}
+    code_version = cache_adapter.code_versions[node_name]
+    data_version = hash_value(result)
+    fingerprint = Fingerprint(node_name=node_name, code=code_version, data=data_version)
+    context_key = create_context_key(to_code=code_version, dependencies=[])
+    result_store = cache_adapter.result_store
+    metadata_store = cache_adapter.metadata_store
 
-#     assert cache_adapter.fingerprints.get(node_name) is None
-#     assert result_store.size == 0
-#     assert metadata_store.size == 0
+    assert cache_adapter.fingerprints.get(node_name) is None
+    assert result_store.size == 0
+    assert metadata_store.size == 0
 
-#     metadata_store.set(to=fingerprint, context_key=context_key, h_node={}, run_id="...")
-#     cache_adapter.run_after_node_execution(
-#         node_name=node_name, node_kwargs=node_kwargs, result=result
-#     )
+    metadata_store.set(to=fingerprint, context_key=context_key, h_node={}, run_id="...")
+    cache_adapter.run_after_node_execution(
+        node_name=node_name, node_kwargs=node_kwargs, result=result
+    )
 
-#     assert result_store.size == 0
-#     with pytest.raises(ResultRetrievalError):
-#         result_store.get(data_version)
-#     assert metadata_store.size == 1
-#     assert metadata_store.get(to_code=code_version, cache_key=context_key) == fingerprint
+    assert result_store.size == 0
+    assert metadata_store.size == 1
+    assert metadata_store.get(to_code=code_version, context_key=context_key) == fingerprint
 
 
 def test_run_to_execute_check_repository_if_previously_unseen(cache_adapter):
