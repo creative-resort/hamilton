@@ -94,7 +94,7 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
         self.result_store = result_store if result_store else ShelveResultStore(path=path)
         self.resume_from: str = resume_from
 
-        # NOTE this special cases are not currently implemented
+        # NOTE these special cases are not currently implemented
         self.dont_store = set(dont_store) if dont_store else set()
         self.always_recompute = set(always_recompute) if always_recompute else set()
         self.constant_fingerprint = set(constant_fingerprint) if constant_fingerprint else set()
@@ -105,10 +105,9 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
         self.graph: graph_types.HamiltonGraph = None
 
     def _process_inputs(self, inputs: Optional[dict]) -> None:
-        """
-        need to hash top-level inputs and store in run `data_versions` to set the
-        base case of the recursive `create_input_keys()`
-        for top-level inputs, the code version shouldn't be considered in the key
+        """Input values always need to be fingerprinted to start the recursive
+        cache checks. Inputs don't have a "code version", so we set a constant
+        f"{node_name}__input" that's unique to each input name.
         """
         if not inputs:
             return
@@ -122,10 +121,8 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
             )
 
     def _process_overrides(self, overrides: Optional[dict]) -> None:
-        """For overrides, we don't want to store a `(code, inputs_key): fingerprint`
-        because the node didn't actually ran.
-        We can still store the `fingerprint: value` in case we hit that fingerprint
-        on subsequent runs
+        """Override values always need to be fingerprinted to start the recursive cache
+        checks. We don't store them because they have no upstream data versions.
         """
         if not overrides:
             return
@@ -139,6 +136,7 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
 
     # TODO create a special @cache that contains the right info
     def _parse_node_tags(self, graph: graph_types.HamiltonGraph) -> None:
+        """Parse node tags for special behaviors"""
         for node in graph.nodes:
             if node.tags.get("cache") is None:
                 continue
@@ -177,7 +175,7 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
         **kwargs: Any,
     ):
         """Get code versions for all, and data version for top-level inputs and overrides
-        Open the cache
+        and setup state variables before the run
         """
         self.metadata_store.initialize()
         self.run_id = run_id
@@ -195,9 +193,9 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
     def run_after_node_execution(
         self, *, node_name: str, node_kwargs: Dict[str, Any], result: Any, **kwargs
     ):
-        """Try to read data version from memory or from cache else compute result version.
-        Then, store data version in memory (for this run) and data version cache (for next run),
-        and store result in result cache (for retrieval in next run)
+        """Try to read the result fingerprint from memory and then the cache else compute it.
+        Store the retrieved or computed fingerprint in memory for the run. For newly computed
+        fingerprints, store both the fingerprint (metadata store) and the result (result store)
         """
         code_version = self.code_versions[node_name]
         dependencies = [self.fingerprints[dep_name] for dep_name in node_kwargs.keys()]
@@ -228,7 +226,10 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
     def run_to_execute_node(
         self, *, node_name: str, node_callable: Any, node_kwargs: Dict[str, Any], **kwargs
     ):
-        """Create hash key then use cached value if exist"""
+        """If a fingerprint can be retrieved, read the value from cache; else compute result.
+        If a fingerprint is retrieved, but reading from cache fails, invalidate the metadata store
+        and force recompute and storage of fingerprint + result.
+        """
         code_version = self.code_versions[node_name]
         dependencies = [self.fingerprints[dep_name] for dep_name in node_kwargs.keys()]
         context_key = fingerprinting.create_context_key(
@@ -265,4 +266,4 @@ class SmartCacheAdapter(NodeExecutionHook, NodeExecutionMethod, GraphExecutionHo
         """Placeholder required to subclass `NodeExecutionHook`"""
 
     def run_after_graph_execution(self, *args, **kwargs):
-        """laceholder required to subclass `GraphExecutionHook`"""
+        """Placeholder required to subclass `GraphExecutionHook`"""
