@@ -5,6 +5,7 @@ import importlib.util
 import json
 import logging
 import operator
+import pathlib
 import sys
 import time
 
@@ -14,11 +15,13 @@ import uuid
 from collections.abc import Sequence  # typing.Sequence is deprecated in >=3.9
 from datetime import datetime
 from types import ModuleType
-from typing import Any, Callable, Collection, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Collection, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import pandas as pd
 
 from hamilton import common, graph_types, htypes
+from hamilton.caching import adapters as cache_adapters
+from hamilton.caching import store as cache_store
 from hamilton.execution import executors, graph_functions, grouping, state
 from hamilton.graph_types import HamiltonNode
 from hamilton.io import materialization
@@ -1805,6 +1808,34 @@ class Builder:
                 )
 
         self.materializers.extend(materializers)
+        return self
+
+    def with_cache(
+        self,
+        path: Optional[Union[str, pathlib.Path]] = None,
+        metadata_store: Optional[cache_store.BaseStore] = None,
+        result_store: Optional[cache_store.BaseStore] = None,
+        resume_from: Optional[Union[str, Literal["latest"]]] = None,
+    ) -> "Builder":
+        """Add the caching adapter to the `Driver`
+
+        :param path: path where the cache metadata and results will be stored
+        :param metadata_store: BaseStore handling metadata for the cache adapter
+        :param result_store: BaseStore caching dataflow execution results
+        :param resume_from: Run id or "latest" to load metadata from at execution time.
+        :return: self
+        """
+        metadata_store = (
+            metadata_store if metadata_store else cache_store.SQLiteMetadataStore(path=path)
+        )
+        result_store = result_store if result_store else cache_store.ShelveResultStore(path=path)
+
+        adapter = cache_adapters.SmartCacheAdapter(
+            metadata_store=metadata_store,
+            result_store=result_store,
+            resume_from=resume_from,
+        )
+        self.adapters.append(adapter)
         return self
 
     def with_execution_manager(self, execution_manager: executors.ExecutionManager) -> "Builder":
