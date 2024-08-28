@@ -14,6 +14,7 @@ concepts that makes Hamilton unique and powerful.
    visualization
    materialization
    function-modifiers
+   caching
    builder
    function-modifiers-advanced
    parallel-task
