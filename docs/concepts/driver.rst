@@ -66,7 +66,7 @@ Dataflow visualizations are useful for documenting your project and quickly maki
 Execute the dataflow
 --------------------
 
-From the Driver, you can request the value of specific nodes by calling ``dr.execute(final_vars=[...])``, where ``final_vars`` is a list of node names. By default, results are returned in a dictionary with ``{node_name: result}``.
+From the Driver, you can request the value of specific nodes by calling ``dr.execute(final_vars=[...])``, where ``final_vars`` is a list of node names. By default, results are returned in a Pandas DataFrame with ``[ node_name: [Pandas Series of results ]]``.
 
 The following requests the node ``C`` and visualizes the dataflow execution:
 
@@ -80,7 +80,7 @@ The following requests the node ``C`` and visualizes the dataflow execution:
     dr.visualize_execution(["C"], "execute_c.png")
     results = dr.execute(["C"])
 
-    print(results["C"])  # access results dictionary
+    print(results["C"])  # access results DataFrame
 
 The Driver automatically determines the minimum required path to compute requested nodes. See the respective outputs for ``dr.visualize_execution(["C"])`` and ``dr.visualize_execution(["B"])``:
 
