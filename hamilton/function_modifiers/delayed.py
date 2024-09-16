@@ -112,7 +112,7 @@ class resolve(DynamicResolver):
         """Initializes a delayed decorator that gets called at some specific resolution time.
 
         :param decorate_with: Function that takes required and optional parameters/returns a decorator.
-        :param until: When to resolve the decorator. Currently only supports `ResolveAt.CONFIG_AVAILABLE`.
+        :param when: When to resolve the decorator. Currently only supports `ResolveAt.CONFIG_AVAILABLE`.
         """
         if when != ResolveAt.CONFIG_AVAILABLE:
             raise ValueError("Dynamic functions must be configured at config time!")
